@@ -121,6 +121,26 @@ class Listing:
 
     installed_capability_id: Optional[int] = None
 
+    # -- GitHub Enrichment --
+    github_owner: Optional[str] = None
+    github_repo: Optional[str] = None
+    github_stars: int = 0
+    github_forks: int = 0
+    github_watchers: int = 0
+    github_license: Optional[str] = None
+    github_topics: List[str] = field(default_factory=list)
+    github_language: Optional[str] = None
+    github_description: Optional[str] = None
+    github_homepage: Optional[str] = None
+    github_default_branch: Optional[str] = None
+    github_created_at: Optional[str] = None
+    github_pushed_at: Optional[str] = None
+    github_updated_at: Optional[str] = None
+    # -- Capacium Trust --
+    fingerprint: Optional[str] = None
+    signature_value: Optional[str] = None
+    signature_public_key: Optional[str] = None
+
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())
@@ -137,7 +157,7 @@ class Listing:
     def from_dict(cls, data: Dict[str, Any]) -> "Listing":
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
-        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history"):
+        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history", "github_topics"):
             if list_field in filtered and isinstance(filtered[list_field], str):
                 try:
                     filtered[list_field] = json.loads(filtered[list_field])
