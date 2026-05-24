@@ -54,11 +54,17 @@ class ExchangeSearch:
 
         if query.min_trust_state:
             try:
-                min_state = TrustState(query.min_trust_state)
+                from .trust import normalize_legacy_state, LEGACY_STATE_MAP
+                normalized = normalize_legacy_state(query.min_trust_state)
+                min_state = TrustState(normalized)
                 valid_states = [
                     s.value for s in TrustState.ordering()
                     if s >= min_state
                 ]
+                # Include legacy aliases that map to valid states
+                for legacy, modern in LEGACY_STATE_MAP.items():
+                    if modern in valid_states and legacy not in valid_states:
+                        valid_states.append(legacy)
                 if valid_states:
                     placeholders = ", ".join("?" for _ in valid_states)
                     conditions.append(f"trust_state IN ({placeholders})")

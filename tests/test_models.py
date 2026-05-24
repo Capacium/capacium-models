@@ -18,33 +18,33 @@ from capacium_models.models import (
     SearchQuery,
 )
 from capacium_models import TrustState, TrustMachine
+from capacium_models.trust import TrustTransitionError
 
 
 class TestTrustState:
     def test_values(self):
         assert TrustState.DISCOVERED.value == "discovered"
-        assert TrustState.INDEXED.value == "indexed"
-        assert TrustState.CLAIMED.value == "claimed"
-        assert TrustState.VERIFIED.value == "verified"
         assert TrustState.AUDITED.value == "audited"
+        assert TrustState.VERIFIED.value == "verified"
+        assert TrustState.SIGNED.value == "signed"
 
     def test_ordering(self):
         ordering = TrustState.ordering()
-        assert len(ordering) == 5
+        assert len(ordering) == 4
         assert ordering[0] == TrustState.DISCOVERED
-        assert ordering[-1] == TrustState.AUDITED
+        assert ordering[-1] == TrustState.SIGNED
 
     def test_from_string(self):
         assert TrustState("discovered") == TrustState.DISCOVERED
         assert TrustState("verified") == TrustState.VERIFIED
+        assert TrustState("signed") == TrustState.SIGNED
 
     def test_comparison(self):
-        assert TrustState.DISCOVERED < TrustState.INDEXED
-        assert TrustState.INDEXED < TrustState.CLAIMED
-        assert TrustState.CLAIMED < TrustState.VERIFIED
-        assert TrustState.VERIFIED < TrustState.AUDITED
+        assert TrustState.DISCOVERED < TrustState.AUDITED
+        assert TrustState.AUDITED < TrustState.VERIFIED
+        assert TrustState.VERIFIED < TrustState.SIGNED
         assert TrustState.VERIFIED >= TrustState.VERIFIED
-        assert TrustState.AUDITED >= TrustState.INDEXED
+        assert TrustState.SIGNED >= TrustState.AUDITED
 
 
 class TestTrustMachine:
@@ -57,39 +57,49 @@ class TestTrustMachine:
             package_type="tool",
         )
 
-    def test_can_transition_valid(self):
-        assert TrustMachine.can_transition(TrustState.DISCOVERED, TrustState.INDEXED) is True
-        assert TrustMachine.can_transition(TrustState.INDEXED, TrustState.CLAIMED) is True
-        assert TrustMachine.can_transition(TrustState.CLAIMED, TrustState.VERIFIED) is True
+    # -- Valid transitions --
+
+    def test_can_transition_valid_forward(self):
+        assert TrustMachine.can_transition(TrustState.DISCOVERED, TrustState.AUDITED) is True
+        assert TrustMachine.can_transition(TrustState.AUDITED, TrustState.VERIFIED) is True
+        assert TrustMachine.can_transition(TrustState.VERIFIED, TrustState.SIGNED) is True
+
+    def test_can_transition_valid_downgrade(self):
+        assert TrustMachine.can_transition(TrustState.AUDITED, TrustState.DISCOVERED) is True
         assert TrustMachine.can_transition(TrustState.VERIFIED, TrustState.AUDITED) is True
+        assert TrustMachine.can_transition(TrustState.SIGNED, TrustState.VERIFIED) is True
+
+    # -- Invalid transitions --
 
     def test_can_transition_invalid(self):
-        assert TrustMachine.can_transition(TrustState.DISCOVERED, TrustState.CLAIMED) is False
         assert TrustMachine.can_transition(TrustState.DISCOVERED, TrustState.VERIFIED) is False
-        assert TrustMachine.can_transition(TrustState.CLAIMED, TrustState.INDEXED) is False
+        assert TrustMachine.can_transition(TrustState.DISCOVERED, TrustState.SIGNED) is False
+        assert TrustMachine.can_transition(TrustState.AUDITED, TrustState.SIGNED) is False
 
-    def test_transition_discovered_to_indexed(self):
+    # -- Transition execution --
+
+    def test_transition_discovered_to_audited(self):
         result = TrustMachine.transition(
-            self.listing, TrustState.INDEXED, "Validated metadata"
+            self.listing, TrustState.AUDITED, "Schema validated"
         )
-        assert result.trust_state == "indexed"
+        assert result.trust_state == "audited"
         assert len(result.trust_history) == 1
         assert result.trust_history[0]["from_state"] == "discovered"
-        assert result.trust_history[0]["to_state"] == "indexed"
-        assert result.indexed_at is not None
+        assert result.trust_history[0]["to_state"] == "audited"
+        # indexed_at no longer set in v2 trust model (indexed state removed)
 
-    def test_transition_no_publisher(self):
+    def test_transition_audited_to_verified_requires_publisher(self):
         listing = Listing(
             canonical_name="org/test",
             canonical_source_url="https://github.com/org/test",
             short_description="test",
             primary_category="tools",
         )
-        TrustMachine.transition(listing, TrustState.INDEXED, "ok")
-        with pytest.raises(Exception):
-            TrustMachine.transition(listing, TrustState.CLAIMED, "no publisher")
+        TrustMachine.transition(listing, TrustState.AUDITED, "ok")
+        with pytest.raises(TrustTransitionError, match="publisher_id"):
+            TrustMachine.transition(listing, TrustState.VERIFIED, "no publisher")
 
-    def test_transition_with_publisher(self):
+    def test_transition_audited_to_verified_with_publisher(self):
         listing = Listing(
             canonical_name="org/test",
             canonical_source_url="https://github.com/org/test",
@@ -97,17 +107,145 @@ class TestTrustMachine:
             primary_category="tools",
             publisher_id="pub-1",
         )
-        TrustMachine.transition(listing, TrustState.INDEXED, "ok")
-        result = TrustMachine.transition(listing, TrustState.CLAIMED, "claimed by publisher")
-        assert result.trust_state == "claimed"
+        TrustMachine.transition(listing, TrustState.AUDITED, "ok")
+        result = TrustMachine.transition(listing, TrustState.VERIFIED, "publisher verified")
+        assert result.trust_state == "verified"
+
+    def test_transition_verified_to_signed_requires_signature(self):
+        listing = Listing(
+            canonical_name="org/test",
+            canonical_source_url="https://github.com/org/test",
+            short_description="test",
+            primary_category="tools",
+            publisher_id="pub-1",
+        )
+        TrustMachine.transition(listing, TrustState.AUDITED, "ok")
+        TrustMachine.transition(listing, TrustState.VERIFIED, "ok")
+        with pytest.raises(TrustTransitionError, match="fingerprint"):
+            TrustMachine.transition(listing, TrustState.SIGNED, "no signature")
+
+    def test_transition_verified_to_signed_with_signature(self):
+        listing = Listing(
+            canonical_name="org/test",
+            canonical_source_url="https://github.com/org/test",
+            short_description="test",
+            primary_category="tools",
+            publisher_id="pub-1",
+            fingerprint="sha256:abc123",
+            signature_value="sig-xyz",
+        )
+        TrustMachine.transition(listing, TrustState.AUDITED, "ok")
+        TrustMachine.transition(listing, TrustState.VERIFIED, "ok")
+        result = TrustMachine.transition(listing, TrustState.SIGNED, "signed")
+        assert result.trust_state == "signed"
 
     def test_transition_same_state_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TrustTransitionError, match="already in state"):
             TrustMachine.transition(self.listing, TrustState.DISCOVERED, "nop")
 
     def test_transition_invalid_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(TrustTransitionError, match="Cannot transition"):
             TrustMachine.transition(self.listing, TrustState.VERIFIED, "skip steps")
+
+    # -- Downgrade transitions --
+
+    def test_downgrade_verified_to_audited(self):
+        listing = Listing(
+            canonical_name="org/test",
+            canonical_source_url="https://github.com/org/test",
+            short_description="test",
+            primary_category="tools",
+            publisher_id="pub-1",
+        )
+        TrustMachine.transition(listing, TrustState.AUDITED, "ok")
+        TrustMachine.transition(listing, TrustState.VERIFIED, "ok")
+        result = TrustMachine.transition(listing, TrustState.AUDITED, "revoked")
+        assert result.trust_state == "audited"
+
+    def test_downgrade_audited_to_discovered(self):
+        TrustMachine.transition(self.listing, TrustState.AUDITED, "ok")
+        result = TrustMachine.transition(self.listing, TrustState.DISCOVERED, "invalidated")
+        assert result.trust_state == "discovered"
+
+    # -- Full lifecycle --
+
+    def test_full_lifecycle(self):
+        listing = Listing(
+            canonical_name="org/test",
+            canonical_source_url="https://github.com/org/test",
+            short_description="test lifecycle",
+            primary_category="tools",
+            publisher_id="pub-1",
+            fingerprint="sha256:abc",
+            signature_value="sig-abc",
+        )
+        TrustMachine.transition(listing, TrustState.AUDITED, "schema ok")
+        TrustMachine.transition(listing, TrustState.VERIFIED, "publisher verified")
+        TrustMachine.transition(listing, TrustState.SIGNED, "cryptographic sig")
+        assert listing.trust_state == "signed"
+        assert len(listing.trust_history) == 3
+
+    # -- Entry criteria --
+
+    def test_entry_criteria_audited(self):
+        lst = Listing(canonical_name="", trust_state="discovered")
+        errors = TrustMachine.validate_entry_criteria(lst, TrustState.AUDITED)
+        assert any("canonical_name" in e for e in errors)
+        assert any("short_description" in e for e in errors)
+        assert any("canonical_source_url" in e for e in errors)
+
+    def test_entry_criteria_verified_requires_publisher(self):
+        lst = Listing(trust_state="audited")
+        errors = TrustMachine.validate_entry_criteria(lst, TrustState.VERIFIED)
+        assert any("publisher_id" in e for e in errors)
+
+    def test_entry_criteria_signed_requires_fingerprint_and_signature(self):
+        lst = Listing(trust_state="verified")
+        errors = TrustMachine.validate_entry_criteria(lst, TrustState.SIGNED)
+        assert any("fingerprint" in e for e in errors)
+        assert any("signature_value" in e for e in errors)
+
+    # -- Backward compatibility --
+
+    def test_normalize_legacy_state_indexed(self):
+        assert TrustMachine.normalize_legacy_state("indexed") == "audited"
+
+    def test_normalize_legacy_state_claimed(self):
+        assert TrustMachine.normalize_legacy_state("claimed") == "verified"
+
+    def test_normalize_legacy_state_passthrough(self):
+        assert TrustMachine.normalize_legacy_state("discovered") == "discovered"
+        assert TrustMachine.normalize_legacy_state("audited") == "audited"
+        assert TrustMachine.normalize_legacy_state("verified") == "verified"
+        assert TrustMachine.normalize_legacy_state("signed") == "signed"
+
+    def test_transition_from_legacy_indexed_state(self):
+        """A listing with legacy 'indexed' state can transition as if 'audited'."""
+        listing = Listing(
+            canonical_name="org/legacy",
+            canonical_source_url="https://github.com/org/legacy",
+            short_description="legacy test",
+            primary_category="tools",
+            publisher_id="pub-1",
+            trust_state="indexed",  # legacy state
+        )
+        result = TrustMachine.transition(listing, TrustState.VERIFIED, "upgrade from legacy")
+        assert result.trust_state == "verified"
+
+    def test_transition_from_legacy_claimed_state(self):
+        """A listing with legacy 'claimed' state can transition as if 'verified'."""
+        listing = Listing(
+            canonical_name="org/legacy2",
+            canonical_source_url="https://github.com/org/legacy2",
+            short_description="legacy test",
+            primary_category="tools",
+            publisher_id="pub-1",
+            fingerprint="sha256:abc",
+            signature_value="sig-xyz",
+            trust_state="claimed",  # legacy state
+        )
+        result = TrustMachine.transition(listing, TrustState.SIGNED, "upgrade from legacy")
+        assert result.trust_state == "signed"
 
 
 class TestListing:
@@ -228,7 +366,7 @@ class TestMCPMetadata:
 
 class TestTrustTransition:
     def test_defaults(self):
-        t = TrustTransition(from_state="discovered", to_state="indexed")
+        t = TrustTransition(from_state="discovered", to_state="audited")
         assert t.timestamp != ""
         assert t.triggered_by == "system"
         assert t.reason == ""
@@ -236,15 +374,15 @@ class TestTrustTransition:
     def test_roundtrip(self):
         t = TrustTransition(
             from_state="discovered",
-            to_state="indexed",
-            reason="Validated",
+            to_state="audited",
+            reason="Schema validated",
             triggered_by="crawler",
         )
         d = t.to_dict()
         t2 = TrustTransition.from_dict(d)
         assert t2.from_state == "discovered"
-        assert t2.to_state == "indexed"
-        assert t2.reason == "Validated"
+        assert t2.to_state == "audited"
+        assert t2.reason == "Schema validated"
         assert t2.triggered_by == "crawler"
 
 

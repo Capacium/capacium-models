@@ -136,6 +136,24 @@ class Listing:
     github_created_at: Optional[str] = None
     github_pushed_at: Optional[str] = None
     github_updated_at: Optional[str] = None
+
+    # -- Document Model v2 --
+    source_repo: Optional[str] = None      # e.g. "anthropics/skills"
+    source_path: str = "/"                  # e.g. "skills/ai-ml/3d-cv-labeling"
+    repo_type: str = "unknown"             # single_skill | multi_skill | collection | mcp_server | unknown
+    skill_path: Optional[str] = None       # path to SKILL.md within repo
+    skill_name: Optional[str] = None       # parsed from SKILL.md frontmatter
+    skill_compatibility: Optional[Dict[str, Any]] = None  # from SKILL.md
+    skill_metadata: Optional[Dict[str, Any]] = None       # from SKILL.md
+
+    # -- Manifest --
+    manifest_raw: Optional[str] = None     # raw capability.yaml content
+    manifest_version: Optional[str] = None
+
+    # -- Capability IR --
+    capability_ir: Optional[Dict[str, Any]] = None   # framework-agnostic IR (JSONB)
+    adaptation_targets: List[str] = field(default_factory=list)  # ["mcp-server", "a2a-agent"]
+
     # -- Capacium Trust --
     fingerprint: Optional[str] = None
     signature_value: Optional[str] = None
@@ -157,17 +175,18 @@ class Listing:
     def from_dict(cls, data: Dict[str, Any]) -> "Listing":
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
-        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history", "github_topics"):
+        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history", "github_topics", "adaptation_targets"):
             if list_field in filtered and isinstance(filtered[list_field], str):
                 try:
                     filtered[list_field] = json.loads(filtered[list_field])
                 except (json.JSONDecodeError, TypeError):
                     filtered[list_field] = []
-        if "mcp_metadata" in filtered and isinstance(filtered["mcp_metadata"], str):
-            try:
-                filtered["mcp_metadata"] = json.loads(filtered["mcp_metadata"])
-            except (json.JSONDecodeError, TypeError):
-                filtered["mcp_metadata"] = None
+        for dict_field in ("mcp_metadata", "skill_compatibility", "skill_metadata", "capability_ir"):
+            if dict_field in filtered and isinstance(filtered[dict_field], str):
+                try:
+                    filtered[dict_field] = json.loads(filtered[dict_field])
+                except (json.JSONDecodeError, TypeError):
+                    filtered[dict_field] = None
         return cls(**filtered)
 
     def get_mcp_metadata_obj(self) -> Optional[MCPMetadata]:
