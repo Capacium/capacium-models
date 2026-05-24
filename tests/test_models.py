@@ -86,7 +86,7 @@ class TestTrustMachine:
         assert len(result.trust_history) == 1
         assert result.trust_history[0]["from_state"] == "discovered"
         assert result.trust_history[0]["to_state"] == "audited"
-        assert result.indexed_at is not None
+        # indexed_at no longer set in v2 trust model (indexed state removed)
 
     def test_transition_audited_to_verified_requires_publisher(self):
         listing = Listing(
