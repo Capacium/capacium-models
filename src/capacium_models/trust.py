@@ -1,9 +1,9 @@
 """TrustState machine for Exchange listings.
-
+ 
 Enforces valid state transitions, records history, and validates entry criteria.
-
-v2: Unified 4-state model (discovered → audited → verified → signed).
-Legacy states (indexed, claimed) are mapped via normalize_legacy_state().
+ 
+v2.1: Unified 5-state model (discovered → pending_review → verified → signed → deprecated).
+Legacy states (indexed, claimed, audited) are mapped via normalize_legacy_state().
 """
 
 from datetime import datetime
@@ -14,18 +14,20 @@ from .models import Listing, TrustTransition
 
 
 class TrustState(str, Enum):
-    DISCOVERED = "discovered"    # Found by crawler, minimal validation
-    AUDITED = "audited"          # Schema validated, composite score computed
-    VERIFIED = "verified"        # Publisher claimed and ownership verified
-    SIGNED = "signed"            # Cryptographic signature present and valid
+    DISCOVERED = "discovered"          # Found by crawler, minimal validation
+    PENDING_REVIEW = "pending_review"  # Schema validated, composite score computed (formerly "audited")
+    VERIFIED = "verified"              # Publisher claimed and ownership verified
+    SIGNED = "signed"                  # Cryptographic signature present and valid
+    DEPRECATED = "deprecated"          # End-of-life, superseded, or abandoned
 
     @classmethod
     def ordering(cls) -> List["TrustState"]:
         return [
             cls.DISCOVERED,
-            cls.AUDITED,
+            cls.PENDING_REVIEW,
             cls.VERIFIED,
             cls.SIGNED,
+            cls.DEPRECATED,
         ]
 
     def __lt__(self, other):
@@ -55,15 +57,16 @@ class TrustState(str, Enum):
 
 # Legacy state mapping for backward compatibility
 LEGACY_STATE_MAP: Dict[str, str] = {
-    "indexed": "audited",
+    "indexed": "pending_review",
     "claimed": "verified",
+    "audited": "pending_review",  # v1.0 → v2.1 migration
 }
 
 
 def normalize_legacy_state(state: str) -> str:
-    """Map old trust states to new ones.
+    """Map old trust states to current model.
 
-    indexed → audited, claimed → verified.
+    indexed/audited → pending_review, claimed → verified.
     All other states pass through unchanged.
     """
     return LEGACY_STATE_MAP.get(state, state)
@@ -74,10 +77,11 @@ class TrustTransitionError(Exception):
 
 
 VALID_TRANSITIONS = {
-    TrustState.DISCOVERED: {TrustState.AUDITED},
-    TrustState.AUDITED: {TrustState.VERIFIED, TrustState.DISCOVERED},
-    TrustState.VERIFIED: {TrustState.SIGNED, TrustState.AUDITED},
-    TrustState.SIGNED: {TrustState.VERIFIED},
+    TrustState.DISCOVERED: {TrustState.PENDING_REVIEW},
+    TrustState.PENDING_REVIEW: {TrustState.VERIFIED, TrustState.DISCOVERED},
+    TrustState.VERIFIED: {TrustState.SIGNED, TrustState.PENDING_REVIEW},
+    TrustState.SIGNED: {TrustState.VERIFIED, TrustState.DEPRECATED},
+    TrustState.DEPRECATED: {TrustState.PENDING_REVIEW},
 }
 
 
@@ -97,13 +101,13 @@ class TrustMachine:
     def validate_entry_criteria(listing: Listing, target_state: TrustState) -> list:
         errors = []
 
-        if target_state == TrustState.AUDITED:
+        if target_state == TrustState.PENDING_REVIEW:
             if not listing.canonical_name:
-                errors.append("Audited state requires canonical_name")
+                errors.append("Pending review state requires canonical_name")
             if not listing.short_description:
-                errors.append("Audited state requires short_description")
+                errors.append("Pending review state requires short_description")
             if not listing.canonical_source_url:
-                errors.append("Audited state requires canonical_source_url")
+                errors.append("Pending review state requires canonical_source_url")
 
         elif target_state == TrustState.VERIFIED:
             if not listing.publisher_id:
