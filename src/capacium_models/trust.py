@@ -6,7 +6,7 @@ v2.1: Unified 5-state model (discovered → pending_review → verified → sign
 Legacy states (indexed, claimed, audited) are mapped via normalize_legacy_state().
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List
 
@@ -159,6 +159,53 @@ class TrustMachine:
 
         listing.trust_state = to_state.value
         listing.trust_history.append(transition.to_dict())
-        listing.updated_at = datetime.utcnow().isoformat()
+        listing.updated_at = datetime.now(timezone.utc).isoformat()
 
         return listing
+
+
+# ── V2 Trust Badge Dictionary (single source of truth for all surfaces) ──
+
+TRUST_BADGES: Dict[str, Dict[str, str]] = {
+    "discovered": {
+        "label": "Discovered",
+        "symbol": "○",
+        "color": "grey",
+        "description": "Found by crawler, minimal validation",
+        "order": 0,
+    },
+    "pending_review": {
+        "label": "Pending Review",
+        "symbol": "◉",
+        "color": "yellow",
+        "description": "Schema validated, composite score computed",
+        "order": 1,
+    },
+    "verified": {
+        "label": "Verified",
+        "symbol": "✓",
+        "color": "green",
+        "description": "Publisher claimed and ownership verified",
+        "order": 2,
+    },
+    "signed": {
+        "label": "Signed",
+        "symbol": "✦",
+        "color": "blue",
+        "description": "Cryptographic signature present and valid",
+        "order": 3,
+    },
+    "deprecated": {
+        "label": "Deprecated",
+        "symbol": "✗",
+        "color": "red",
+        "description": "End-of-life, superseded, or abandoned",
+        "order": 4,
+    },
+}
+
+
+def get_trust_badge(trust_state: str) -> Dict[str, str]:
+    """Return the badge definition for a trust state. Falls back to 'discovered' for unknown states."""
+    normalized = normalize_legacy_state(trust_state)
+    return TRUST_BADGES.get(normalized, TRUST_BADGES["discovered"])

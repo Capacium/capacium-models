@@ -18,7 +18,7 @@ from .models import (
     VerificationRecord,
     SearchQuery,
 )
-from .trust import TrustState, TrustMachine
+from .trust import TrustState, TrustMachine, TRUST_BADGES, get_trust_badge
 from .search import ExchangeSearch
 
 __all__ = [
@@ -37,4 +37,6 @@ __all__ = [
     "VerificationRecord",
     "SearchQuery",
     "ExchangeSearch",
+    "TRUST_BADGES",
+    "get_trust_badge",
 ]
