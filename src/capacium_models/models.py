@@ -8,7 +8,7 @@ Collection, ClaimRequest, VerificationRecord, TrustTransition, SearchQuery.
 import json
 import uuid
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -71,7 +71,7 @@ class TrustTransition:
 
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -162,7 +162,7 @@ class Listing:
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         if not self.discovered_at:
             self.discovered_at = now
         if not self.updated_at:
@@ -212,7 +212,7 @@ class Publisher:
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:
@@ -286,7 +286,7 @@ class Collection:
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         if not self.created_at:
             self.created_at = now
         if not self.updated_at:
@@ -323,7 +323,7 @@ class ClaimRequest:
         if not self.id:
             self.id = str(uuid.uuid4())
         if not self.submitted_at:
-            self.submitted_at = datetime.utcnow().isoformat()
+            self.submitted_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -349,7 +349,7 @@ class VerificationRecord:
         if not self.id:
             self.id = str(uuid.uuid4())
         if not self.verified_at:
-            self.verified_at = datetime.utcnow().isoformat()
+            self.verified_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
