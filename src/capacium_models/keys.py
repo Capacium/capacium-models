@@ -44,7 +44,7 @@ LICENSE_PUBLIC_KEYS: Dict[str, str] = {
     # Ed25519 keypair generated on maintainer workstation, private uploaded
     # to envctl on capacium-prod)
     # ──────────────────────────────────────────────────────────────────────
-    "lic-2026-q2-01": "REPLACE_WITH_64_CHAR_HEX_PUBLIC_KEY",
+    "lic-2026-q2-01": "8e5e33e1ab3676d239a1f89cded6afca9aca0e8ba24c3b4b50ad4b71ef84e978",
 }
 
 
