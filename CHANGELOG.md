@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## capacium-models v0.4.1 — License Public-Key Registry (2026-06-03)
+
+### New Features
+
+- **`capacium_models.keys` module** — license public-key registry for
+  Ed25519 token verification. Holds 64-char hex public keys indexed by
+  `kid`. Matching private keys live ONLY in envctl on prod
+  (`CAPACIUM_LICENSE_SIGNING_KEY` on capacium-exchange).
+
+  Exports:
+  - `LICENSE_PUBLIC_KEYS: Dict[str, str]` — the registry itself.
+  - `get_license_public_key(kid: str) -> str` — lookup with validated
+    return; raises `UnknownLicenseKid` if kid is missing or its value is
+    malformed (e.g., still a placeholder).
+  - `known_kids() -> List[str]` — registry keys sorted newest-first.
+  - `UnknownLicenseKid` — dedicated `KeyError` subclass for consumers.
+
+  Initial entry: `lic-2026-q2-01`. Future kids append; old kids stay
+  active until their tokens expire. See module docstring for rotation
+  lifecycle.
+
+  DECISION-001 reference: license-signing keypair is DISTINCT from
+  capability-signing keypair; `lic-` namespace enforced.
+
+### Consumer integration
+
+- `capacium-exchange.marketplace.licensing.LicenseKeyManager` (FIX-A-002)
+  imports `get_license_public_key` from this module to verify tokens
+  locally — no round-trip to Exchange needed for signature verification.
+
+### No breaking changes
+
+- Additive only. All v0.4.0 consumers continue to work unchanged.
+
 ## capacium-models v0.4.0 — 5-State Trust Model + TRUST_BADGES (2026-06-03)
 
 ### Breaking Changes

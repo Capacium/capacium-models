@@ -19,6 +19,12 @@ from .models import (
     SearchQuery,
 )
 from .trust import TrustState, TrustMachine, TRUST_BADGES, get_trust_badge
+from .keys import (
+    LICENSE_PUBLIC_KEYS,
+    UnknownLicenseKid,
+    get_license_public_key,
+    known_kids,
+)
 from .search import ExchangeSearch
 
 __all__ = [
@@ -39,4 +45,8 @@ __all__ = [
     "ExchangeSearch",
     "TRUST_BADGES",
     "get_trust_badge",
+    "LICENSE_PUBLIC_KEYS",
+    "UnknownLicenseKid",
+    "get_license_public_key",
+    "known_kids",
 ]
