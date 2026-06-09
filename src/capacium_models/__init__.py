@@ -18,12 +18,22 @@ from .models import (
     VerificationRecord,
     SearchQuery,
 )
-from .trust import TrustState, TrustMachine, TRUST_BADGES, get_trust_badge
+from .trust import TrustState, TrustMachine
 from .keys import (
     LICENSE_PUBLIC_KEYS,
     UnknownLicenseKid,
     get_license_public_key,
     known_kids,
+)
+from .labels import (
+    RESOURCE_KIND_LABELS,
+    OPERATOR_TYPE_LABELS,
+    INSTALL_STATUS_LABELS,
+    TRUST_BADGES,
+    get_kind_label,
+    get_operator_type_label,
+    get_install_status_label,
+    get_trust_badge,
 )
 from .search import ExchangeSearch
 
@@ -45,6 +55,12 @@ __all__ = [
     "ExchangeSearch",
     "TRUST_BADGES",
     "get_trust_badge",
+    "RESOURCE_KIND_LABELS",
+    "OPERATOR_TYPE_LABELS",
+    "INSTALL_STATUS_LABELS",
+    "get_kind_label",
+    "get_operator_type_label",
+    "get_install_status_label",
     "LICENSE_PUBLIC_KEYS",
     "UnknownLicenseKid",
     "get_license_public_key",
