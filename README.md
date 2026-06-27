@@ -1,5 +1,11 @@
 # capacium-models
 
+> [!NOTE]
+> **Public mirror.** The canonical repository is hosted on our self-hosted git.
+> This GitHub copy is a read-only mirror kept in sync for visibility and
+> installation. Bug reports are welcome via Issues; pull requests are applied
+> upstream and synced back here.
+
 Shared domain models for the Capacium ecosystem. Used by `capacium-exchange` and `capacium-crawler`.
 
 ## Installation
