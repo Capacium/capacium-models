@@ -1,6 +1,5 @@
 """Tests for shared domain models."""
 
-import json
 import pytest
 
 from capacium_models.models import (
