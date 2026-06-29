@@ -57,3 +57,9 @@ Zero runtime dependencies — stdlib only (`dataclasses`, `enum`, `uuid`, `datet
 ## License
 
 MIT
+
+## Development
+
+Canonical repository: **self-hosted Forgejo** — `git.langevc.com/capacium/capacium-models`
+(`git clone git@git.langevc.com:capacium/capacium-models.git`). Develop against the Forgejo
+clone and open pull requests there. The GitHub copy is a read-only mirror.
