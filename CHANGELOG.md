@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## capacium-models v0.5.0 — Canonical UI Labels (2026-07-16)
+
+### New Features
+
+- Added `capacium_models.labels` as the canonical source for resource-kind,
+  operator-type, install-status, and string-only trust badge labels used across
+  Capacium surfaces.
+- Exported resource-kind, operator-type, and install-status label registries and
+  lookup helpers from the package root.
+- Added Python 3.13 and 3.14 package classifiers.
+
+### Compatibility
+
+- Preserved the v0.4.x package-level `TRUST_BADGES` and
+  `get_trust_badge()` contract. They continue to expose rich badge metadata
+  and legacy trust-state normalization from `capacium_models.trust`.
+- String-only trust labels remain available from `capacium_models.labels`.
+
+### Packaging
+
+- Added project URLs and SPDX-form license metadata.
+- Added a tag-triggered GitHub Actions trusted-publishing workflow for PyPI.
+
 ## capacium-models v0.4.1 — License Public-Key Registry (2026-06-03)
 
 ### New Features

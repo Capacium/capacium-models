@@ -9,19 +9,25 @@ description = "Shared domain models for the Capacium ecosystem — Listing, Trus
 authors = [{name = "Capacium"}]
 requires-python = ">=3.10"
 dependencies = []
-license = {text = "MIT"}
+license = "MIT"
 readme = "README.md"
 keywords = ["capacium", "models", "listing", "trust", "ai-agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Capacium/capacium-models"
+Repository = "https://github.com/Capacium/capacium-models"
+Issues = "https://github.com/Capacium/capacium-models/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
