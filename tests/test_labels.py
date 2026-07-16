@@ -8,6 +8,10 @@ from capacium_models.labels import (
     get_install_status_label,
     get_trust_badge,
 )
+from capacium_models import (
+    TRUST_BADGES as PUBLIC_TRUST_BADGES,
+    get_trust_badge as get_public_trust_badge,
+)
 
 
 class TestResourceKindLabels:
@@ -103,3 +107,11 @@ class TestTrustBadges:
     def test_unknown_badge_falls_back_to_key(self):
         assert get_trust_badge("super_trusted") == "super_trusted"
         assert get_trust_badge("") == ""
+
+    def test_top_level_api_keeps_rich_badge_metadata(self):
+        assert PUBLIC_TRUST_BADGES["verified"]["label"] == "Verified"
+        assert PUBLIC_TRUST_BADGES["verified"]["symbol"] == "✓"
+        assert get_public_trust_badge("verified") == PUBLIC_TRUST_BADGES["verified"]
+
+    def test_top_level_api_keeps_legacy_normalization(self):
+        assert get_public_trust_badge("audited") == PUBLIC_TRUST_BADGES["pending_review"]

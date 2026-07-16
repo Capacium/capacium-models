@@ -18,7 +18,7 @@ pip install capacium-models
 
 | Model | Description |
 |-------|-------------|
-| `TrustState` | Enum: DISCOVERED → INDEXED → CLAIMED → VERIFIED → AUDITED |
+| `TrustState` | Enum: DISCOVERED → PENDING_REVIEW → VERIFIED → SIGNED → DEPRECATED |
 | `TrustMachine` | State machine with VALID_TRANSITIONS, can_transition(), transition() |
 | `Listing` | Full listing model (24 fields, auto-UUID, auto-timestamps) |
 | `Publisher` | Publisher profile with verification support |
@@ -29,6 +29,10 @@ pip install capacium-models
 | `ClaimRequest` / `VerificationRecord` | Trust workflow models |
 | `SearchQuery` | Faceted search query model (16 fields) |
 | `ExchangeSearch` | Faceted search SQL engine |
+
+The package-level `TRUST_BADGES` and `get_trust_badge()` exports retain the
+rich badge metadata introduced in v0.4.0. UI-facing canonical text labels,
+including the string-only trust labels, live in `capacium_models.labels`.
 
 ## Usage
 
@@ -46,8 +50,12 @@ listing = Listing(
 
 # Transition through trust states
 machine = TrustMachine()
-if machine.can_transition(listing.trust_state, TrustState.INDEXED):
-    listing = machine.transition(listing, TrustState.INDEXED, "Validated metadata")
+if machine.can_transition(listing.trust_state, TrustState.PENDING_REVIEW):
+    listing = machine.transition(
+        listing,
+        TrustState.PENDING_REVIEW,
+        "Validated metadata",
+    )
 ```
 
 ## Dependencies
