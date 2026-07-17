@@ -10,4 +10,6 @@ build/
 *.db
 *.egg
 .benchmarks/
-.skillweave/
+# SkillWeave runtime stays local; the organization planning helper is tracked.
+.skillweave/*
+!.skillweave/agents.md
