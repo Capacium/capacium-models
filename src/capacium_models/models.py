@@ -87,7 +87,7 @@ class TrustTransition:
 class Listing:
     id: str = ""
     canonical_name: str = ""
-    package_type: str = "skill"
+    kind: str = "skill"
 
     canonical_source_url: str = ""
     source_urls: List[str] = field(default_factory=list)
@@ -159,6 +159,14 @@ class Listing:
     signature_value: Optional[str] = None
     signature_public_key: Optional[str] = None
 
+    # -- Work 5.0 Meta --
+    operator_meta: Optional[Dict[str, Any]] = None
+    checkpoint_meta: Optional[Dict[str, Any]] = None
+    policy_meta: Optional[Dict[str, Any]] = None
+    resource_identity: Optional[Dict[str, Any]] = None
+    replaces: List[str] = field(default_factory=list)
+    previous_identities: List[str] = field(default_factory=list)
+
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())
@@ -169,19 +177,27 @@ class Listing:
             self.updated_at = now
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        # For backward compatibility, also emit package_type
+        d["package_type"] = self.kind
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Listing":
+        data_copy = dict(data)
+        if "package_type" in data_copy and "kind" not in data_copy:
+            data_copy["kind"] = data_copy.pop("package_type")
+            
         known = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in data.items() if k in known}
-        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history", "github_topics", "adaptation_targets"):
+        filtered = {k: v for k, v in data_copy.items() if k in known}
+        
+        for list_field in ("source_urls", "tags", "target_frameworks", "trust_history", "github_topics", "adaptation_targets", "replaces", "previous_identities"):
             if list_field in filtered and isinstance(filtered[list_field], str):
                 try:
                     filtered[list_field] = json.loads(filtered[list_field])
                 except (json.JSONDecodeError, TypeError):
                     filtered[list_field] = []
-        for dict_field in ("mcp_metadata", "skill_compatibility", "skill_metadata", "capability_ir"):
+        for dict_field in ("mcp_metadata", "skill_compatibility", "skill_metadata", "capability_ir", "operator_meta", "checkpoint_meta", "policy_meta", "resource_identity"):
             if dict_field in filtered and isinstance(filtered[dict_field], str):
                 try:
                     filtered[dict_field] = json.loads(filtered[dict_field])
@@ -363,7 +379,7 @@ class VerificationRecord:
 @dataclass
 class SearchQuery:
     text: Optional[str] = None
-    package_type: Optional[str] = None
+    kind: Optional[str] = None
     category: Optional[str] = None
     subcategory: Optional[str] = None
     tags: Optional[List[str]] = None

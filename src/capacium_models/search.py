@@ -36,9 +36,9 @@ class ExchangeSearch:
             like = f"%{query.text}%"
             params.extend([like, like, like])
 
-        if query.package_type:
+        if query.kind:
             conditions.append("package_type = ?")
-            params.append(query.package_type)
+            params.append(query.kind)
 
         if query.category:
             conditions.append("primary_category = ?")

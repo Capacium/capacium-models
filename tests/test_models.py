@@ -53,7 +53,7 @@ class TestTrustMachine:
             canonical_source_url="https://github.com/org/test",
             short_description="A test",
             primary_category="developer-tools",
-            package_type="tool",
+            kind="tool",
         )
 
     # -- Valid transitions --
@@ -251,7 +251,7 @@ class TestListing:
     def test_defaults(self):
         l = Listing()
         assert l.id != ""
-        assert l.package_type == "skill"
+        assert l.kind == "skill"
         assert l.trust_state == "discovered"
         assert l.primary_category == "developer-tools"
         assert l.maturity == "experimental"
@@ -268,7 +268,7 @@ class TestListing:
         assert l1.id != l2.id
 
     def test_to_dict(self):
-        l = Listing(canonical_name="a/b", package_type="tool")
+        l = Listing(canonical_name="a/b", kind="tool")
         d = l.to_dict()
         assert d["canonical_name"] == "a/b"
         assert d["package_type"] == "tool"
@@ -277,7 +277,7 @@ class TestListing:
     def test_roundtrip(self):
         l = Listing(
             canonical_name="org/mcp-server",
-            package_type="mcp-server",
+            kind="mcp-server",
             canonical_source_url="https://github.com/org/mcp-server",
             short_description="An MCP server",
             tags=["mcp", "server"],
@@ -287,7 +287,7 @@ class TestListing:
         d = l.to_dict()
         l2 = Listing.from_dict(d)
         assert l2.canonical_name == "org/mcp-server"
-        assert l2.package_type == "mcp-server"
+        assert l2.kind == "mcp-server"
         assert l2.tags == ["mcp", "server"]
         assert l2.source_urls == ["https://github.com/org/mcp-server"]
         assert l2.target_frameworks == ["opencode"]
@@ -498,10 +498,10 @@ class TestSearchQuery:
         d = q.to_dict()
         assert d["text"] == "mcp"
         assert d["limit"] == 10
-        assert "package_type" not in d
+        assert "kind" not in d
 
     def test_from_dict(self):
         q = SearchQuery.from_dict({"text": "mcp", "limit": 10})
         assert q.text == "mcp"
         assert q.limit == 10
-        assert q.package_type is None
+        assert q.kind is None
