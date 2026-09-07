@@ -72,7 +72,7 @@ class TestExchangeSearch:
     def _seed(self, conn):
         listings = [
             Listing(
-                canonical_name="org/mcp-server", package_type="mcp-server",
+                canonical_name="org/mcp-server", kind="mcp-server",
                 canonical_source_url="https://github.com/org/mcp-server",
                 short_description="MCP filesystem server",
                 primary_category="mcp-servers",
@@ -80,7 +80,7 @@ class TestExchangeSearch:
                 tags=["mcp", "filesystem"],
             ),
             Listing(
-                canonical_name="org/code-review", package_type="skill",
+                canonical_name="org/code-review", kind="skill",
                 canonical_source_url="https://github.com/org/code-review",
                 short_description="AI code review",
                 primary_category="developer-tools",
@@ -97,9 +97,9 @@ class TestExchangeSearch:
         assert results[0].canonical_name == "org/mcp-server"
 
     def test_package_type_filter(self):
-        results, count = self.search.search(SearchQuery(package_type="skill"))
+        results, count = self.search.search(SearchQuery(kind="skill"))
         assert count == 1
-        assert results[0].package_type == "skill"
+        assert results[0].kind == "skill"
 
     def test_tag_filter(self):
         results, count = self.search.search(SearchQuery(tags=["code-review"]))
