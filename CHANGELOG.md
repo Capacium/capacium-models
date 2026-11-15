@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## capacium-models v1.1.0 — Work 5.0 metadata (2026-11-15)
+
+### New Features
+
+- Added the Work 5.0 metadata fields `operator_meta`, `checkpoint_meta`,
+  `policy_meta` and `resource_identity` (optional objects), and `replaces` and
+  `previous_identities` (lists of strings), to the package model. They
+  round-trip through `to_dict` and `from_dict`.
+
+### Changed
+
+- The package model field `package_type` is renamed `kind`. `to_dict` still
+  emits `package_type` next to `kind`, and `from_dict` accepts either key, so
+  stored records and existing consumers of the dictionary form keep working.
+- The search query field `package_type` is renamed `kind`. Callers that build a
+  search query with `package_type=` must pass `kind=` instead.
+
 ## capacium-models v0.5.0 — Canonical UI Labels (2026-07-16)
 
 ### New Features
