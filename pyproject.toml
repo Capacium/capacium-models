@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "capacium-models"
-version = "1.1.0"
+version = "1.1.1"
 description = "Shared domain models for the Capacium ecosystem — Listing, TrustState, TrustMachine, and more"
 authors = [{name = "Capacium"}]
 requires-python = ">=3.10"

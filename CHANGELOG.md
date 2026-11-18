@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## capacium-models v1.1.1 — Release flow (2026-11-18)
+
+No change to the models or to the package contents.
+
+- The release object is written by the ops-engine on the canonical Forgejo and on the GitHub mirror; both destinations are declared in `.ops.yaml`.
+- The release is cut from `main`, which carries the v1.1.0 section.
+
 ## capacium-models v1.1.0 — Work 5.0 metadata (2026-11-15)
 
 ### New Features
