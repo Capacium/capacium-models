@@ -147,14 +147,14 @@ jobs:
       # the wheel URL; the hash is checked on the downloaded file before it is
       # installed, so a wheel whose bytes changed under a fixed version is
       # refused here rather than at publication.
-      - name: Install ops-engine 3.7.2 (pinned by version and content hash)
+      - name: Install ops-engine 3.7.3 (pinned by version and content hash)
         run: |
           set -euo pipefail
           ENGINE_VENV="$RUNNER_TEMP/engine-venv"
           python3 -m venv "$ENGINE_VENV"
-          WHEEL_URL="https://github.com/LangeVC/ops-engine/releases/download/v3.7.2/ops_engine-3.7.2-py3-none-any.whl"
-          WHEEL_SHA256="c58a5890c314db1e4ebe1ae2fb3a8b501d6bb81c6bc3797af39e57e02a26018f"
-          WHEEL="$RUNNER_TEMP/ops_engine-3.7.2-py3-none-any.whl"
+          WHEEL_URL="https://github.com/LangeVC/ops-engine/releases/download/v3.7.3/ops_engine-3.7.3-py3-none-any.whl"
+          WHEEL_SHA256="865fdd6f15b525123b3b5fc7f40193afd959be50244be8c4dab8c15668798959"
+          WHEEL="$RUNNER_TEMP/ops_engine-3.7.3-py3-none-any.whl"
           curl -fsSL "$WHEEL_URL" -o "$WHEEL"
           printf '%s  %s\n' "$WHEEL_SHA256" "$WHEEL" | sha256sum -c -
           "$ENGINE_VENV/bin/python" -m pip install --quiet "$WHEEL"
@@ -162,7 +162,7 @@ jobs:
           import importlib.metadata as md
           import sys
 
-          REQUIRED = "3.7.2"
+          REQUIRED = "3.7.3"
           got = md.version("ops-engine")
           if got != REQUIRED:
               sys.stderr.write(
