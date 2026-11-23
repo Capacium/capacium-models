@@ -40,14 +40,30 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      # The runner image is Ubuntu (catthehacker/ubuntu:act-latest), which uses
-      # apt-get; python3-venv and python3-pip build the distributions and the
-      # engine venv.
-      - name: Install checkout deps
+      # The runner image already carries git, bash, curl, jq, python3 with
+      # venv and pip (measured on catthehacker/ubuntu:act-latest: python3
+      # 3.14.4, python3-venv importable, pip 25.1.1, git/curl/jq/sha256sum/
+      # zip/unzip present, no apk). Install only what a given runner lacks:
+      # on the shipped image this step installs nothing and does not call the
+      # package manager at all, so it neither stalls an emulated runner nor
+      # touches a package index it does not need.
+      - name: Install missing runner deps
         run: |
           set -euo pipefail
+          missing=""
+          for tool in git bash curl jq sha256sum; do
+            command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+          done
+          command -v python3 >/dev/null 2>&1 || missing="$missing python3"
+          python3 -c 'import venv' >/dev/null 2>&1 || missing="$missing python3-venv"
+          python3 -m pip --version >/dev/null 2>&1 || missing="$missing python3-pip"
+          if [ -z "$missing" ]; then
+            echo "all runner tools present; nothing installed"
+            exit 0
+          fi
+          echo "installing missing runner tools:$missing"
           apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git bash curl jq python3 python3-venv python3-pip
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $missing
 
       # TAG_NAME is the single source of the release tag for every step below:
       # the dispatch input when present, the pushed tag otherwise. On a tag push
