@@ -11,11 +11,19 @@
 # mirror.yml, and neither creates a release. That left every release object
 # with `assets: []` on both forges (EP-013 findings).
 #
-# EP-014 closes that gap here and in publish.yml: this file now declares the
-# release block whole (the assets below), and publish.yml gains a job of its
-# own that attaches those files through ops_engine.release_attach. The release
+# EP-014 closes that gap here and in .forgejo/workflows/release.yml: this file
+# now declares the release block whole (the assets below), and the release
+# workflow attaches those files through ops_engine.release_attach. The release
 # block is read from this file by the attach CLI even when the layer-2 org
 # config is absent, so this Layer-3 file is the declaration of record.
+#
+# The attach runs on the canonical forge, not on GitHub: measured on 2026-11-23,
+# Capacium/capacium-models and Capacium/capacium-bridge carry no GitHub Actions
+# secrets, while the Forgejo org capacium supplies GH_MIRROR_TOKEN and FG_BOT_TOKEN
+# and there secrets.GITHUB_TOKEN is the Forgejo token. A job that only ran on
+# GitHub could therefore never authenticate the Forgejo destination, so
+# .github/workflows/publish.yml stays the PyPI-only workflow it was and the
+# attach lives in .forgejo/workflows/release.yml.
 #
 # Visibilities are the MEASURED state of each forge on 2026-11-17, not an
 # inference from the Layer-2 mirror declaration in capacium-ops/config.yml:
@@ -53,7 +61,7 @@ forge_hosts: [git.langevc.com]
 
 # The release block whole (REA-010 / REA-015). The two distribution files that
 # the PyPI publish already ships are declared here as assets of the release
-# object, so the attach job in .github/workflows/publish.yml converges every
+# object, so the attach step in .forgejo/workflows/release.yml converges every
 # release object on them with ops_engine.release_attach.
 #
 # A wheel is a ZIP container, so the wheel is declared with the type that names
