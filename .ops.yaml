@@ -4,13 +4,26 @@
 # destinations from it; no destination, forge repository, host or credential
 # name is restated as a literal in .forgejo/ or .github/.
 #
-# This repository runs no release path of its own, and this file adds none.
-# Measured on 2026-11-17: .github/workflows/publish.yml publishes to PyPI only
-# and creates no release object (it triggers on tags `v*`, runs only where
-# github.server_url is https://github.com, and its last step is
-# pypa/gh-action-pypi-publish); .forgejo/workflows/ holds ci.yml and mirror.yml,
-# and neither creates a release. The release path for this repository is the
-# ops-engine release workflow, and this file is its Layer-3 input.
+# Measured on 2026-11-17 (before EP-014): .github/workflows/publish.yml
+# published to PyPI only and created no release object (it triggers on tags
+# `v*`, runs only where github.server_url is https://github.com, and its last
+# step was pypa/gh-action-pypi-publish); .forgejo/workflows/ holds ci.yml and
+# mirror.yml, and neither creates a release. That left every release object
+# with `assets: []` on both forges (EP-013 findings).
+#
+# EP-014 closes that gap here and in .forgejo/workflows/release.yml: this file
+# now declares the release block whole (the assets below), and the release
+# workflow attaches those files through ops_engine.release_attach. The release
+# block is read from this file by the attach CLI even when the layer-2 org
+# config is absent, so this Layer-3 file is the declaration of record.
+#
+# The attach runs on the canonical forge, not on GitHub: measured on 2026-11-23,
+# Capacium/capacium-models and Capacium/capacium-bridge carry no GitHub Actions
+# secrets, while the Forgejo org capacium supplies GH_MIRROR_TOKEN and FG_BOT_TOKEN
+# and there secrets.GITHUB_TOKEN is the Forgejo token. A job that only ran on
+# GitHub could therefore never authenticate the Forgejo destination, so
+# .github/workflows/publish.yml stays the PyPI-only workflow it was and the
+# attach lives in .forgejo/workflows/release.yml.
 #
 # Visibilities are the MEASURED state of each forge on 2026-11-17, not an
 # inference from the Layer-2 mirror declaration in capacium-ops/config.yml:
@@ -45,6 +58,33 @@ destinations:
 # canonical host in a workflow is refused. Keep the declaration on exactly one
 # line: the extractor reads a single `forge_hosts:` line.
 forge_hosts: [git.langevc.com]
+
+# The release block whole (REA-010 / REA-015). The two distribution files that
+# the PyPI publish already ships are declared here as assets of the release
+# object, so the attach step in .forgejo/workflows/release.yml converges every
+# release object on them with ops_engine.release_attach.
+#
+# A wheel is a ZIP container, so the wheel is declared with the type that names
+# the file's form (github_release_zip); the sdist is a gzipped tarball
+# (github_release_tarball). Both types sit in _RELEASE_ASSET_TYPES, so the
+# engine reads them back as assets OF the release object. The <version>
+# placeholder is the tag without its leading `v`, so the resolved names equal
+# the PyPI file names of 1.1.1 exactly:
+#   capacium_models-1.1.1-py3-none-any.whl
+#   capacium_models-1.1.1.tar.gz
+release:
+  enabled: true
+  trigger: tag_push
+  tag_pattern: "v*"
+  # Reproduces the existing v1.1.1 release title on both forges: the GitHub and
+  # Forgejo release object for v1.1.1 is titled "Capacium Models v1.1.1".
+  # render_release_name substitutes {tag_name} to give exactly that string.
+  name_template: "Capacium Models {tag_name}"
+  assets:
+    - type: github_release_zip
+      name: "capacium_models-<version>-py3-none-any.whl"
+    - type: github_release_tarball
+      name: "capacium_models-<version>.tar.gz"
 
 # Deliberately NOT declared here:
 #   - tracker_prefixes: the audience gate refuses nothing when the list is

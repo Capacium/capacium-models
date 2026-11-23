@@ -1,0 +1,277 @@
+name: Release
+
+# EP-014: capacium-models builds a wheel and an sdist and publishes them to
+# PyPI, but its release objects carried no file on either forge. This workflow
+# builds those two distributions from the tag tree and attaches them to the
+# release object on both forges through ops_engine.release_attach, which reads
+# the destinations and the release block (release.assets) from .ops.yaml.
+#
+# Why here and not in .github/workflows/publish.yml: measured on 2026-11-23,
+# Capacium/capacium-models and Capacium/capacium-bridge carry NO GitHub Actions
+# secrets (gh api repos/<o>/<r>/actions/secrets is empty), while the canonical
+# Forgejo org capacium supplies GH_MIRROR_TOKEN and FG_BOT_TOKEN and, on Forgejo,
+# secrets.GITHUB_TOKEN is the Forgejo token. A job that only ran on GitHub could
+# never authenticate the Forgejo destination, so the PyPI publish stays the
+# PyPI-only workflow it was and the attach runs here on the canonical forge. The
+# attach is therefore a job separate from the PyPI publish by construction.
+#
+# Two entry points, one publication path:
+#   - a push of a v* tag releases that tag, and
+#   - workflow_dispatch with a REQUIRED `tag` input backfills an EXISTING v*
+#     tag without re-pushing it (this is how v1.1.1, whose tree predates this
+#     workflow, gets its wheel and sdist).
+# The input is validated before anything is built or attached: it must match the
+# v* pattern and name an existing tag on origin. On a dispatch the tag tree's
+# .ops.yaml predates the release block, so only .ops.yaml is overlaid from the
+# default branch; the distributions are still built from the tag tree. A tag
+# push reads the checked-out tree as-is (no overlay, no dispatch gates).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to build and attach (e.g. v1.1.1); must start with v'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # The runner image already carries git, bash, curl, jq, python3 with
+      # venv and pip (measured on catthehacker/ubuntu:act-latest: python3
+      # 3.14.4, python3-venv importable, pip 25.1.1, git/curl/jq/sha256sum/
+      # zip/unzip present, no apk). Install only what a given runner lacks:
+      # on the shipped image this step installs nothing and does not call the
+      # package manager at all, so it neither stalls an emulated runner nor
+      # touches a package index it does not need.
+      - name: Install missing runner deps
+        run: |
+          set -euo pipefail
+          missing=""
+          for tool in git bash curl jq sha256sum; do
+            command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+          done
+          command -v python3 >/dev/null 2>&1 || missing="$missing python3"
+          python3 -c 'import venv' >/dev/null 2>&1 || missing="$missing python3-venv"
+          python3 -m pip --version >/dev/null 2>&1 || missing="$missing python3-pip"
+          if [ -z "$missing" ]; then
+            echo "all runner tools present; nothing installed"
+            exit 0
+          fi
+          echo "installing missing runner tools:$missing"
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $missing
+
+      # TAG_NAME is the single source of the release tag for every step below:
+      # the dispatch input when present, the pushed tag otherwise. On a tag push
+      # github.ref_name is the tag; on a dispatch it is the branch, so the input
+      # must win.
+      - name: Resolve the release tag
+        run: |
+          set -euo pipefail
+          echo "TAG_NAME=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_ENV"
+
+      # The dispatch input is a gate checked before anything is checked out or
+      # built: it must match the release tag pattern v* (release.tag_pattern in
+      # .ops.yaml), so a value outside it never reaches checkout. On a tag push
+      # this step is skipped (the trigger filter already bounds the ref), so a
+      # tag push behaves exactly as it would without the dispatch entry point.
+      - name: Validate the release tag pattern before any publish
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          case "$TAG_NAME" in
+            v*) ;;
+            *)
+              echo "TagPatternError: release tag '$TAG_NAME' does not match 'v*'; refusing before any publish." >&2
+              exit 2
+              ;;
+          esac
+          echo "release tag pattern validated: $TAG_NAME"
+
+      # Checkout the ref the run is for: on a tag push that is the pushed tag
+      # (github.ref, unchanged); on a manual dispatch it is the tag named in the
+      # input. fetch-depth 0 fetches the tag ref so the version check below can
+      # read it. A tag that does not exist fails at the origin check, before any
+      # release object or asset is touched.
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      # Prove a dispatched tag exists on origin after checkout. A dispatch
+      # naming a tag that is not on origin fails with a named error before the
+      # build or the attach run. Skipped for a tag push, which is already for a
+      # tag that exists.
+      - name: Verify the release tag exists on origin
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          found="$(git ls-remote --tags --refs origin "refs/tags/$TAG_NAME")"
+          if [ -z "$found" ]; then
+            echo "UnknownReleaseTagError: tag '$TAG_NAME' does not exist on origin; refusing before any publish." >&2
+            exit 2
+          fi
+          echo "release tag verified on origin: $TAG_NAME -> $found"
+
+      # The tag must equal the package version, as the PyPI workflow already
+      # enforces: a v1.1.1 run builds the 1.1.1 tree, so the produced file names
+      # equal the declared asset names in .ops.yaml.
+      - name: Validate tag matches package version
+        run: |
+          set -euo pipefail
+          [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          package_version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "$TAG_NAME" = "v${package_version}"
+          echo "tag $TAG_NAME matches package version $package_version"
+
+      # Build the sdist and the wheel from the checked-out tag tree. These bytes
+      # are this run's build: they are NOT guaranteed to equal the files already
+      # on PyPI for the same version (a rebuild can differ — the sdist carries
+      # timestamps), so this workflow attaches what it builds and the engine
+      # verifies THAT build's digests on read-back, never the PyPI digests.
+      - name: Build the sdist and wheel from the tag tree
+        run: |
+          set -euo pipefail
+          BUILD_VENV="$RUNNER_TEMP/build-venv"
+          python3 -m venv "$BUILD_VENV"
+          "$BUILD_VENV/bin/python" -m pip install --quiet --upgrade pip
+          "$BUILD_VENV/bin/python" -m pip install --quiet build
+          "$BUILD_VENV/bin/python" -m build --outdir dist
+          ls -l dist
+
+      # The engine is pinned by version AND content hash. The version selects
+      # the wheel URL; the hash is checked on the downloaded file before it is
+      # installed, so a wheel whose bytes changed under a fixed version is
+      # refused here rather than at publication.
+      - name: Install ops-engine 3.7.2 (pinned by version and content hash)
+        run: |
+          set -euo pipefail
+          ENGINE_VENV="$RUNNER_TEMP/engine-venv"
+          python3 -m venv "$ENGINE_VENV"
+          WHEEL_URL="https://github.com/LangeVC/ops-engine/releases/download/v3.7.2/ops_engine-3.7.2-py3-none-any.whl"
+          WHEEL_SHA256="c58a5890c314db1e4ebe1ae2fb3a8b501d6bb81c6bc3797af39e57e02a26018f"
+          WHEEL="$RUNNER_TEMP/ops_engine-3.7.2-py3-none-any.whl"
+          curl -fsSL "$WHEEL_URL" -o "$WHEEL"
+          printf '%s  %s\n' "$WHEEL_SHA256" "$WHEEL" | sha256sum -c -
+          "$ENGINE_VENV/bin/python" -m pip install --quiet "$WHEEL"
+          "$ENGINE_VENV/bin/python" - <<'PY'
+          import importlib.metadata as md
+          import sys
+
+          REQUIRED = "3.7.2"
+          got = md.version("ops-engine")
+          if got != REQUIRED:
+              sys.stderr.write(
+                  "EngineVersionError: installed ops-engine %s, required %s.\n"
+                  % (got, REQUIRED)
+              )
+              sys.exit(2)
+          print("engine: ops-engine %s (sha256 verified)" % got)
+          PY
+          echo "ENGINE_VENV=$ENGINE_VENV" >> "$GITHUB_ENV"
+
+      # A manual dispatch checks out the tag, and that tree predates the release
+      # block (v1.1.1's .ops.yaml has no release: key), so the engine would read
+      # an empty name_template and rewrite an existing release title. On a
+      # dispatch, overlay .ops.yaml from the default branch (fetched, not the tag
+      # tree) so release.name_template, the release block, destinations and
+      # forge_hosts are present. The dist built above stays the tag tree's build;
+      # a tag push leaves the tree as checked out.
+      - name: Use the default branch .ops.yaml on a manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$DEFAULT_BRANCH"
+          git checkout FETCH_HEAD -- .ops.yaml
+          if ! grep -q '^release:' .ops.yaml; then
+            echo "MissingReleaseBlockError: .ops.yaml from '$DEFAULT_BRANCH' has no release: block; refusing to attach with an empty name_template." >&2
+            exit 2
+          fi
+          echo "using .ops.yaml from $DEFAULT_BRANCH ($(git rev-parse --short FETCH_HEAD))"
+
+      # The notes are the CHANGELOG entry for this tag, read by the engine's own
+      # extractor (the same one the release gate uses), so the body the engine
+      # composes equals the stored body. A tag whose version has no non-empty
+      # section is refused by the extractor before any release object exists.
+      # The workflow passes only --notes-file: the product heading is rendered
+      # from .ops.yaml's release.name_template and the CHANGELOG link is derived
+      # by the engine from forge_hosts, so neither is restated here.
+      - name: Extract release notes from the CHANGELOG
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$RUNNER_TEMP/release-notes.txt"
+          "$ENGINE_VENV/bin/python" - "$TAG_NAME" "$NOTES_FILE" <<'NOTES_PY'
+          import sys
+
+          from ops_engine.modules.release_gates import extract_changelog_section
+
+          tag, out = sys.argv[1], sys.argv[2]
+          with open("CHANGELOG.md", encoding="utf-8") as fh:
+              notes = extract_changelog_section(fh.read(), tag)
+          if not notes.strip():
+              sys.stderr.write(
+                  "MissingChangelogEntryError: no non-empty section for %s in "
+                  "CHANGELOG.md; a release with no notes would post commit "
+                  "subjects, so the release is refused.\n" % tag
+              )
+              sys.exit(2)
+          with open(out, "w", encoding="utf-8") as fh:
+              fh.write(notes)
+          sys.stdout.write("notes: %d bytes for %s\n" % (len(notes), tag))
+          NOTES_PY
+          echo "NOTES_FILE=$NOTES_FILE" >> "$GITHUB_ENV"
+
+      # The engine attaches every regular file in the directory it is given, by
+      # basename, so the built dist is staged into a directory of its own. Its
+      # basenames (capacium_models-<version>-py3-none-any.whl and
+      # capacium_models-<version>.tar.gz) are the assets .ops.yaml declares,
+      # which the engine verifies by read-back on each destination.
+      - name: Stage the dist for the engine to attach
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp dist/* release-assets/
+          ls -l release-assets
+
+      # Publication is one call to the engine's entry point; this workflow
+      # creates no release object itself. Run without --config, the CLI resolves
+      # the destinations, the release block and release.assets from the .ops.yaml
+      # in --repo-dir, so this repository has one declaration and no second file
+      # that can drift from it. The title template is read from that same file
+      # and passed as --name-template; without it the CLI's derived default
+      # ("<repo_name> <tag>") would retitle the published release.
+      #
+      # FORGEJO_BASE_URL is the Forgejo API address the engine's release_attach
+      # reads; without it the Forgejo adapter has no host. It is the runner's
+      # server URL (the canonical forge this workflow runs on), not a literal.
+      # FORGEJO_TOKEN is the Forgejo token the org supplies as secrets.GITHUB_TOKEN
+      # on a Forgejo runner; GH_MIRROR_TOKEN is the org secret for the GitHub
+      # mirror. Each is keyed by the credential_variable the .ops.yaml declares.
+      - name: Attach the dist to the release on both forges
+        env:
+          TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          FORGEJO_BASE_URL: ${{ github.server_url }}
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME_TEMPLATE="$("$ENGINE_VENV/bin/python" -c 'import yaml; d = yaml.safe_load(open(".ops.yaml", encoding="utf-8")); print(((d.get("release") or {}).get("name_template")) or "")')"
+          if [ -z "$NAME_TEMPLATE" ]; then
+            echo "MissingReleaseNameTemplateError: .ops.yaml declares no release.name_template; a default title would rewrite the release, so the attach is refused." >&2
+            exit 2
+          fi
+          echo "name template: $NAME_TEMPLATE"
+
+          "$ENGINE_VENV/bin/python" -m ops_engine.release_attach \
+            --repo "${{ github.repository }}" \
+            --tag "$TAG_NAME" \
+            --artifacts release-assets \
+            --repo-dir . \
+            --name-template "$NAME_TEMPLATE" \
+            --notes-file "$NOTES_FILE"
